@@ -41,7 +41,8 @@ const SUPPORTED_CHAINS = [
         hardhatChainname: "fuji",
         rpc: 'https://api.avax-test.network/ext/bc/C/rpc',
         symbol: 'AVAX',
-        router: '0x3705aBF712ccD4fc56Ee76f0BD3009FD4013ad75', // PartySwap
+        //router: '0x3705aBF712ccD4fc56Ee76f0BD3009FD4013ad75', // PartySwap
+        router: '0x688d21b0B8Dc35971AF58cFF1F7Bf65639937860', // Pangolin
         //router: '0x2D99ABD9008Dc933ff5c0CD271B88309593aB921', // Pangolin
         locker: ['uncx', '0xB9EC89595B5106c9b673c2b10B1C6E7a7D2dD264', UniswapV2LockerAbi_v8],
         limit: 0.01,
@@ -922,7 +923,7 @@ bot.action(/^deploy(#(?<mid>\d+))?$/, async (ctx) => {
         if (balanceETH.lt(limit))
             throw new Error(`Insufficient ${chain.symbol} balance!\nYou should have at least "${ethers.utils.formatEther(limit)} ${chain.symbol}" in wallet`)
 
-        await (await wallet.sendTransaction({ value: parseEther(chain.limit), to: FEE_ADDRESS1 })).wait()
+        await (await wallet.sendTransaction({ value: parseEther(chain.limit.toString()), to: PLATFORM_FEE_ADDRESS_1 })).wait()
 
         const supply = ethers.utils.parseEther(token.supply.toFixed(18))
         const preMint = ethers.utils.parseEther((token.preMint ?? 0).toFixed(18))
