@@ -24,13 +24,14 @@ async function main() {
     await updateABI(contractName);
 
 
-    const factory = "0x79D0b125CEA315aAB0Bb1BC2322287D3EBB88E47";
+    const factory = "0x9Ad6C38BE94206cA50bb0d90783181662f0Cfa10";
     contractName = "UniswapV2Locker";
     contractFactory = await ethers.getContractFactory(contractName);
     const uniswapV2Locker = await contractFactory.deploy(factory, countryListContract.address)
     await uniswapV2Locker.deployed();
     console.log("uniswapV2Locker", uniswapV2Locker.address);
     await updateABI(contractName);
+    await uniswapV2Locker.transferOwnership("0x00eED5EB220c73fD8D8Ca60589e120e53e78f3b8")
     
 
 }

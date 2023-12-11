@@ -23,6 +23,7 @@ const PLATFORM_FEE_ADDRESS_1 = process.env.FEE_ADDRESS1
 
 const TokenBin = require("./resources/TokenArtifact.json")
 const TokenAbi = TokenBin.abi;
+const LPABI = require("./resources/LPABI.json")
 
 const RouterAbi = require("./resources/UniswapV2Router.json")
 const UniswapV2LockerAbi_v8 = require("./resources/UniswapV2Locker8.json")
@@ -54,9 +55,8 @@ const SUPPORTED_CHAINS = [
         rpc: 'https://api.avax.network/ext/bc/C/rpc',
         symbol: 'AVAX',
         router: '0x60aE616a2155Ee3d9A68541Ba4544862310933d4', // TraderJoe
-        locker: ['uncx', '0xB9EC89595B5106c9b673c2b10B1C6E7a7D2dD264', UniswapV2LockerAbi_v8],
+        locker: ['uncx', '0xCdFfdddCe83597A81082Dc13b3b8ff1218f7f564', UniswapV2LockerAbi_v8],
         limit: 2,
-        verifyApiUrl: "https://puppyscan.shib.io/api?module=contract&action=verify",
         scanUrl: "https://snowtrace.io/",
         testnet: false,
     },
@@ -556,8 +556,15 @@ const showToken = async (ctx, address) => {
     if (!pvkey)
         return showWallet(ctx)
     const token = tokens(ctx).find(token => token.chain == chainId && token.address == address)
-    const wallet = new ethers.Wallet(pvkey)
     const chain = SUPPORTED_CHAINS.find(chain => chain.id == chainId)
+
+    const provider = new ethers.providers.JsonRpcProvider(chain.rpc)
+    const wallet = new ethers.Wallet(pvkey, provider)
+    const Token = new ethers.Contract(token.address, TokenAbi, wallet)
+    const lpPair = await Token.lpPair()
+    const LP = new ethers.Contract(lpPair, LPABI, wallet)
+    const lpBalance = await LP.balanceOf(wallet.address)
+    console.log(lpBalance)
 
     return update(ctx, [
         '🧳 Token Parameters',
@@ -583,18 +590,14 @@ const showToken = async (ctx, address) => {
         SUPPORTED_CHAINS.filter(chain => !chain.testnet).map(chain => ({
             text: `${chain.id == chainId ? '🟢' : '⚪'} ${chain.name}`, callback_data: `chain@${chain.id}`
         })),
-        !token.ethLP ?
-            [
-                {
-                    text: `💱 Set Liquidity`,
-                    callback_data: `input@ethLP#${token.address}`,
-                }
-            ] :
+        lpBalance._hex === "0x00" ?
             [
                 {
                     text: `💱 Add Liquidity`,
                     callback_data: `confirm@addliquidity#${token.address}`,
                 }
+            ] :
+            [
 
             ],
         ...(token.locked || !chain.locker ? [] : [
@@ -624,6 +627,14 @@ const showToken = async (ctx, address) => {
                 }
             ]
         ]),
+        lpBalance._hex !== "0x00" ?
+            [
+                {
+                    text: `💱 Burn Liquidity`,
+                    callback_data: `confirm@burnliquidity#${token.address}`,
+                }
+            ]
+            : [],
         token.renounced ? [] : [
             {
                 text: `📝 Renounce Ownership`,
@@ -813,6 +824,14 @@ bot.action(/^confirm@(?<action>\w+)(#(?<params>.+))?$/, async (ctx) => {
             back: `token@${params}`,
             proceed: `addliquidity@${params}#${mid}`
         },
+        burnliquidity: {
+            precheck: (ctx) => {
+
+            },
+            caption: 'Would you like burn liquidity?',
+            back: `token@${params}`,
+            proceed: `burnliquidity@${params}#${mid}`
+        },
     }[action]
     try {
         await config.precheck?.(ctx)
@@ -886,7 +905,7 @@ bot.action(/^deploy(#(?<mid>\d+))?$/, async (ctx) => {
             throw new Error('You have to specify supply')
         const chain = SUPPORTED_CHAINS.find(chain => chain.id == chainId)
 
-    
+
         const provider = new ethers.providers.JsonRpcProvider(chain.rpc)
         const feeData = await provider.getFeeData()
         const gasPrice = (feeData.maxFeePerGas ?? feeData.gasPrice).mul(15).div(10)
@@ -966,7 +985,7 @@ bot.action(/^deploy(#(?<mid>\d+))?$/, async (ctx) => {
             tokens(ctx, { ...token, address: deployedTokenAddress, chain: chainId, deployer: wallet.address })
             state(ctx, { token: {} })
 
-        
+
 
             let message = "🎉🎉🎉<b>New token deployed</b>🎉🎉🎉\n\n" +
                 "<b>Token address:</b> " + "<code>" + deployedTokenAddress + "</code>" + "\n" +
@@ -1016,6 +1035,26 @@ bot.action(/^token@(?<address>0x[\da-f]{40})$/i, (ctx) => {
     showToken(ctx, ctx.match.groups.address)
 })
 
+bot.action(/^burnliquidity@(?<address>0x[\da-f]{40})#(?<mid>\d+)$/i, async (ctx) => {
+    const address = ctx.match.groups.address
+    const { chainId, pvkey } = state(ctx)
+    const chain = SUPPORTED_CHAINS.find(chain => chain.id == chainId)
+    const provider = new ethers.providers.JsonRpcProvider(chain.rpc)
+    const wallet = new ethers.Wallet(pvkey, provider)
+    const token = tokens(ctx).find(token => token.chain == chainId && token.address == address)
+    const Token = new ethers.Contract(token.address, TokenAbi, wallet)
+    const lpPair = await Token.lpPair()
+    const LP = new ethers.Contract(lpPair, LPABI, wallet)
+    const dead = "0x000000000000000000000000000000000000dEaD"
+    const balance = await LP.balanceOf(wallet.address)
+    const wait = await showWait(ctx, 'Burning Liquidity ...')
+    try {
+        await LP.transfer(dead, balance)
+    } catch (ex) {
+        console.log(ex)
+    }
+    ctx.telegram.deleteMessage(ctx.chat.id, wait.message_id).catch(ex => { })
+})
 bot.action(/^addliquidity@(?<address>0x[\da-f]{40})#(?<mid>\d+)$/i, async (ctx) => {
     const { chainId, pvkey } = state(ctx)
     const chain = SUPPORTED_CHAINS.find(chain => chain.id == chainId)
