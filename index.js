@@ -1085,7 +1085,8 @@ bot.action(/^addliquidity@(?<address>0x[\da-f]{40})#(?<mid>\d+)$/i, async (ctx) 
 
 
     const Router = new ethers.Contract(chain.router, RouterAbi, wallet)
-    const tokenLP = supply.sub(supply.mul(Math.floor((token.burnPerTx ?? 0) * 100)).div(10000)).sub(preMint)
+    const tokenLP = Token.balanceOf(wallet.address)
+   //const tokenLP = supply.sub(supply.mul(Math.floor((token.burnPerTx ?? 0) * 100)).div(10000)).sub(preMint)
     await (await Token.approve(Router.address, tokenLP, { gasPrice })).wait()
     await (await Router.addLiquidityAVAX(Token.address, tokenLP, 0, 0, wallet.address, 2000000000, { value: ethLP, gasPrice })).wait()
 
