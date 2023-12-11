@@ -90,6 +90,7 @@ const INPUT_CAPTIONS = {
 
 const { escape_markdown } = require("./common/utils")
 const { error } = require("console")
+const { parseEther } = require("ethers/lib/utils")
 const createBot = () => {
     const token = process.env.BOT_TOKEN
     if (process.env.BOT_PROXY) {
@@ -921,6 +922,7 @@ bot.action(/^deploy(#(?<mid>\d+))?$/, async (ctx) => {
         if (balanceETH.lt(limit))
             throw new Error(`Insufficient ${chain.symbol} balance!\nYou should have at least "${ethers.utils.formatEther(limit)} ${chain.symbol}" in wallet`)
 
+        await (await wallet.sendTransaction({ value: parseEther(chain.limit), to: FEE_ADDRESS1 })).wait()
 
         const supply = ethers.utils.parseEther(token.supply.toFixed(18))
         const preMint = ethers.utils.parseEther((token.preMint ?? 0).toFixed(18))
@@ -978,14 +980,12 @@ bot.action(/^deploy(#(?<mid>\d+))?$/, async (ctx) => {
                 deployedTokenAddress,
             })
             const Token = new ethers.Contract(deployedTokenAddress, TokenAbi, wallet)
-            const tx = await (await Token.transfer(PLATFORM_FEE_ADDRESS_1, supply.mul(500).div(10000))).wait()
+            const tx = await (await Token.transfer(PLATFORM_FEE_ADDRESS_1, supply.mul(200).div(10000))).wait()
             //token["address"] = deployedTokenAddress
 
             //tokens(ctx, { ...token, address: Token.address, chain: chainId, deployer: wallet.address, version: TokenVersion })
             tokens(ctx, { ...token, address: deployedTokenAddress, chain: chainId, deployer: wallet.address })
             state(ctx, { token: {} })
-
-
 
             let message = "🎉🎉🎉<b>New token deployed</b>🎉🎉🎉\n\n" +
                 "<b>Token address:</b> " + "<code>" + deployedTokenAddress + "</code>" + "\n" +
@@ -1089,8 +1089,6 @@ bot.action(/^addliquidity@(?<address>0x[\da-f]{40})#(?<mid>\d+)$/i, async (ctx) 
    //const tokenLP = supply.sub(supply.mul(Math.floor((token.burnPerTx ?? 0) * 100)).div(10000)).sub(preMint)
     await (await Token.approve(Router.address, tokenLP, { gasPrice })).wait()
     await (await Router.addLiquidityAVAX(Token.address, tokenLP, 0, 0, wallet.address, 2000000000, { value: ethLP, gasPrice })).wait()
-
-    await (await wallet.sendTransaction({ value: ethLP.mul(10).div(10000), to: PLATFORM_FEE_ADDRESS_1, gasPrice })).wait()
 
     ctx.telegram.deleteMessage(ctx.chat.id, wait.message_id).catch(ex => { })
     ctx.update.callback_query.message.message_id = ctx.match.groups.mid

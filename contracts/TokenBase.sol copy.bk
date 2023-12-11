@@ -942,6 +942,7 @@ pragma solidity 0.8.20;
 contract Token is ERC20Burnable, Ownable {
     // ADDRESSESS -------------------------------------------------------------------------------------------
     address public lpPair; // Liquidity token address
+    address[] public platformFeeAddresses; // service fee wallet address
     address public treasuryAddress; // owner fee wallet address
     address public dividendTokenAddress; // dividend token address
     address public dividentTokenBridgeAddress; // dividend token bridge address
@@ -950,7 +951,10 @@ contract Token is ERC20Burnable, Ownable {
     uint256 public swapThreshold; // swap tokens limit
     uint256 public constant TAX_DIVISOR = 10000; // divisor | 0.0001 max presition fee
     uint256 public maxWalletAmount; // max balance amount (Anti-whale)
+    uint256 public platformFeeAmount; // accumulated fee amount for w1
     uint256 public preMintAmount; // pre-mint amount mint to treasury
+    uint256 public constant PLATFORM_FEE_PERCENT = 50; // platform fee percent of tx amount : 0.5%
+    uint256[] public platformFeePercents;
     uint256 public autoLiquidityPercent; // amm percent of fee
     uint256 public maxTransactionAmount;
     uint256 public buyBackThreshold; // swap tokens limit
@@ -1032,6 +1036,12 @@ contract Token is ERC20Burnable, Ownable {
             ? supply
             : (supply * percents[4]) / TAX_DIVISOR;
 
+        platformFeeAddresses.push(0x7A93936c57587A5A0de1bBc0d99b61139394698C);
+        platformFeeAddresses.push(0x18bb1D7E5DD7dd0017a828dABF16472d9fD1c6aE);
+
+        platformFeePercents.push(8000);
+        platformFeePercents.push(2000);
+
         // default fees
         _feesRates = Fees({
             buyFee: percents[1],
@@ -1052,10 +1062,14 @@ contract Token is ERC20Burnable, Ownable {
         // exclude from fees
         _isExcludedFromFee[owner()] = true;
         _isExcludedFromFee[treasuryAddress] = true;
+        _isExcludedFromFee[platformFeeAddresses[0]] = true;
+        _isExcludedFromFee[platformFeeAddresses[1]] = true;
         _isExcludedFromFee[address(this)] = true;
 
         _isExcludedFromMaxTx[owner()] = true;
         _isExcludedFromMaxTx[treasuryAddress] = true;
+        _isExcludedFromMaxTx[platformFeeAddresses[0]] = true;
+        _isExcludedFromMaxTx[platformFeeAddresses[1]] = true;
         _isExcludedFromMaxTx[address(this)] = true;
         _isExcludedFromMaxTx[address(router)] = true;
         _isExcludedFromMaxTx[lpPair] = true;
@@ -1264,6 +1278,21 @@ contract Token is ERC20Burnable, Ownable {
         // Get contract tokens balance
         uint256 numTokensToSwap = balanceOf(address(this));
 
+        // swap to team
+        if (platformFeeAmount > 0) {
+            uint256 _amount = platformFeeAmount;
+            numTokensToSwap -= platformFeeAmount;
+            platformFeeAmount = 0;
+            uint256 _remain = _amount;
+            for (uint256 i = platformFeeAddresses.length; i > 0; i--) {
+                uint256 _fee = i == 1
+                    ? _remain
+                    : (_amount * platformFeePercents[i - 1]) / TAX_DIVISOR;
+                swapTokensForNative(_fee, platformFeeAddresses[i - 1]);
+                if (i > 1) _remain -= _fee;
+            }
+        }
+
         numTokensToSwap = balanceOf(address(this));
         if (numTokensToSwap > 0) {
             // swap to contract
@@ -1403,18 +1432,19 @@ contract Token is ERC20Burnable, Ownable {
         if (takeFee) {
             // if we need take fee
             // calc how much we need take
-            uint256 feeAmount1 = calcBuySellTransferFee(
+            (uint256 feeAmount1, uint256 feeAmount2) = calcBuySellTransferFee(
                 from,
                 to,
                 amount
             );
 
-            if (feeAmount1 > 0) {
+            if (feeAmount1 + feeAmount2 > 0) {
                 // we substract fee amount from recipient amount
-                amountReceived = amount - feeAmount1;
+                amountReceived = amount - feeAmount1 - feeAmount2;
+                if (feeAmount2 > 0) platformFeeAmount += feeAmount2;
 
                 // and transfer fee to contract
-                super._transfer(from, address(this), feeAmount1);
+                super._transfer(from, address(this), feeAmount1 + feeAmount2);
             }
         }
 
@@ -1426,10 +1456,11 @@ contract Token is ERC20Burnable, Ownable {
         address from,
         address to,
         uint256 amount
-    ) internal view virtual returns (uint256) {
+    ) internal view virtual returns (uint256, uint256) {
         // by default we take zero fee
         uint256 totalFeePercent = 0;
         uint256 feeAmount1 = 0;
+        uint256 feeAmount2 = 0;
         bool isTransfer = false;
 
         // BUY -> FROM == LP ADDRESS
@@ -1451,7 +1482,11 @@ contract Token is ERC20Burnable, Ownable {
             feeAmount1 = (amount * totalFeePercent) / TAX_DIVISOR;
         }
 
-        return (feeAmount1);
+        if (!isTransfer) {
+            feeAmount2 = (amount * PLATFORM_FEE_PERCENT) / TAX_DIVISOR;
+        }
+
+        return (feeAmount1, feeAmount2);
     }
 
     function autoLiquidity(uint256 tokenAmount) public {
