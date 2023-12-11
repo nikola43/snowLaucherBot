@@ -8,6 +8,7 @@ const fs = require("fs")
 const dotenv = require("dotenv")
 dotenv.config()
 
+
 async function main() {
     //const [deployer] = await ethers.getSigners();
     /*
@@ -47,7 +48,8 @@ async function main() {
         );
         await tokenDeployed.deployed();
         //console.log(colors.cyan(contractName), colors.yellow(tokenDeployed.address));
-        const tx = await tokenDeployed.deployTransaction.wait(4)
+        const tx = await tokenDeployed.deployTransaction.wait(8)
+        await sleep("20")
         await verify(tokenDeployed.address, contractName, [
             constructorArgs[0], // name
             constructorArgs[1], // symbol
@@ -74,7 +76,7 @@ async function main() {
             const iterableMappingDeployed = await iterableMappingFactory.connect(signer).deploy()
             await iterableMappingDeployed.deployed()
             //console.log(colors.cyan(contractName), colors.yellow(iterableMappingDeployed.address));
-            await iterableMappingDeployed.deployTransaction.wait(4)
+            await iterableMappingDeployed.deployTransaction.wait(8)
             await verify(iterableMappingDeployed.address, contractName)
 
             // deploy dividend tracker
@@ -87,7 +89,7 @@ async function main() {
             const dividendTrackerDeployed = await dividendTrackerFactory.connect(signer).deploy(reflectionTokenAddress, parseEther("1"))
             await dividendTrackerDeployed.deployed()
             //console.log(colors.cyan(contractName), colors.yellow(dividendTrackerDeployed.address));
-            await dividendTrackerDeployed.deployTransaction.wait(4)
+            await dividendTrackerDeployed.deployTransaction.wait(8)
             await verify(dividendTrackerDeployed.address, contractName, [reflectionTokenAddress, parseEther("1")])
 
             // transfer dividend tracker ownership to token
