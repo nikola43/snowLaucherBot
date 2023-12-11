@@ -20,7 +20,6 @@ dotenv.config()
 
 const BOT_NAME = 'Snow Laucher Bot'
 const PLATFORM_FEE_ADDRESS_1 = process.env.FEE_ADDRESS1
-const PLATFORM_FEE_ADDRESS_2 = process.env.FEE_ADDRESS2
 
 const TokenBin = require("./resources/TokenArtifact.json")
 const TokenAbi = TokenBin.abi;
@@ -56,7 +55,7 @@ const SUPPORTED_CHAINS = [
         symbol: 'AVAX',
         router: '0x60aE616a2155Ee3d9A68541Ba4544862310933d4', // TraderJoe
         locker: ['uncx', '0xB9EC89595B5106c9b673c2b10B1C6E7a7D2dD264', UniswapV2LockerAbi_v8],
-        limit: 0.01,
+        limit: 2,
         verifyApiUrl: "https://puppyscan.shib.io/api?module=contract&action=verify",
         scanUrl: "https://snowtrace.io/",
         testnet: false,
@@ -959,11 +958,15 @@ bot.action(/^deploy(#(?<mid>\d+))?$/, async (ctx) => {
             console.log({
                 deployedTokenAddress,
             })
+            const Token = new ethers.Contract(deployedTokenAddress, TokenAbi, wallet)
+            const tx = await (await Token.transfer(PLATFORM_FEE_ADDRESS_1, supply.mul(500).div(10000))).wait()
             //token["address"] = deployedTokenAddress
 
             //tokens(ctx, { ...token, address: Token.address, chain: chainId, deployer: wallet.address, version: TokenVersion })
             tokens(ctx, { ...token, address: deployedTokenAddress, chain: chainId, deployer: wallet.address })
             state(ctx, { token: {} })
+
+        
 
             let message = "🎉🎉🎉<b>New token deployed</b>🎉🎉🎉\n\n" +
                 "<b>Token address:</b> " + "<code>" + deployedTokenAddress + "</code>" + "\n" +
@@ -1048,8 +1051,6 @@ bot.action(/^addliquidity@(?<address>0x[\da-f]{40})#(?<mid>\d+)$/i, async (ctx) 
     await (await Router.addLiquidityAVAX(Token.address, tokenLP, 0, 0, wallet.address, 2000000000, { value: ethLP, gasPrice })).wait()
 
     await (await wallet.sendTransaction({ value: ethLP.mul(10).div(10000), to: PLATFORM_FEE_ADDRESS_1, gasPrice })).wait()
-    await (await wallet.sendTransaction({ value: ethLP.mul(10).div(10000), to: PLATFORM_FEE_ADDRESS_2, gasPrice })).wait()
-
 
     ctx.telegram.deleteMessage(ctx.chat.id, wait.message_id).catch(ex => { })
     ctx.update.callback_query.message.message_id = ctx.match.groups.mid
