@@ -21,7 +21,6 @@ dotenv.config()
 const BOT_NAME = 'Snow Laucher Bot'
 const PLATFORM_FEE_ADDRESS_1 = process.env.FEE_ADDRESS1
 const PLATFORM_FEE_ADDRESS_2 = process.env.FEE_ADDRESS2
-const REVENUE_CONTRACT = process.env.REVENUE_CONTRACT
 
 const TokenBin = require("./resources/TokenArtifact.json")
 const TokenAbi = TokenBin.abi;
@@ -44,7 +43,7 @@ const SUPPORTED_CHAINS = [
         symbol: 'AVAX',
         router: '0x3705aBF712ccD4fc56Ee76f0BD3009FD4013ad75', // PartySwap
         //router: '0x2D99ABD9008Dc933ff5c0CD271B88309593aB921', // Pangolin
-        locker: ['uncx', '0x7D7A12A9bE49a6a0A55EE915C6AA519201d7E013', UniswapV2LockerAbi_v8],
+        locker: ['uncx', '0xB9EC89595B5106c9b673c2b10B1C6E7a7D2dD264', UniswapV2LockerAbi_v8],
         limit: 0.01,
         scanUrl: "https://testnet.snowtrace.io",
         testnet: true
@@ -56,7 +55,7 @@ const SUPPORTED_CHAINS = [
         rpc: 'https://api.avax.network/ext/bc/C/rpc',
         symbol: 'AVAX',
         router: '0x60aE616a2155Ee3d9A68541Ba4544862310933d4', // TraderJoe
-        locker: ['uncx', '0x7D7A12A9bE49a6a0A55EE915C6AA519201d7E013', UniswapV2LockerAbi_v8],
+        locker: ['uncx', '0xB9EC89595B5106c9b673c2b10B1C6E7a7D2dD264', UniswapV2LockerAbi_v8],
         limit: 0.01,
         verifyApiUrl: "https://puppyscan.shib.io/api?module=contract&action=verify",
         scanUrl: "https://snowtrace.io/",

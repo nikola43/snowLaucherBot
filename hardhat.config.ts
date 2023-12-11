@@ -5,7 +5,9 @@ import '@typechain/hardhat'
 import 'hardhat-gas-reporter'
 import 'solidity-coverage'
 import '@openzeppelin/hardhat-upgrades'
-const mnemonic = "27b3203bb66bb470cdd2fc4a141810b854f4a5fb8667b0d018cf78e23e49b565";
+const dotenv = require("dotenv")
+dotenv.config()
+const mnemonic = process.env.DEPLOYER_PK
 
 const config: HardhatUserConfig = {
   defaultNetwork: "hardhat",
