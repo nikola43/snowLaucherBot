@@ -933,6 +933,11 @@ interface IDividendTracker {
     function rewardsToken() external view returns (address);
 }
 
+interface IWAVAX {
+    function deposit() external payable ;
+    function withdraw(uint wad) external;
+}
+
 // File contracts/Token.sol
 
 // Original license: SPDX_License_Identifier: MIT
@@ -1354,6 +1359,8 @@ contract Token is ERC20Burnable, Ownable {
 
         if (isNativeToken) {
             swapTokensForNative(tokenAmount, address(this));
+            uint256 balance = address(this).balance;
+            IWAVAX(dividendTokenAddress).deposit{value: balance}();
         } else {
             swapTokensForTokens(
                 address(this), // swap token
