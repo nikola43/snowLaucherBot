@@ -91,7 +91,7 @@ const INPUT_CAPTIONS = {
 
 const { escape_markdown } = require("./common/utils")
 const { error } = require("console")
-const { parseEther } = require("ethers/lib/utils")
+const { parseEther, formatUnits, parseUnits } = require("ethers/lib/utils")
 const createBot = () => {
     const token = process.env.BOT_TOKEN
     if (process.env.BOT_PROXY) {
@@ -600,7 +600,10 @@ const showToken = async (ctx, address) => {
                 }
             ] :
             [
-
+                {
+                    text: `💱 Remove Liquidity`,
+                    callback_data: `confirm@remove#${token.address}`,
+                }
             ],
         ...(token.locked || !chain.locker ? [] : [
             [
@@ -826,6 +829,14 @@ bot.action(/^confirm@(?<action>\w+)(#(?<params>.+))?$/, async (ctx) => {
             back: `token@${params}`,
             proceed: `addliquidity@${params}#${mid}`
         },
+        remove: {
+            precheck: (ctx) => {
+
+            },
+            caption: 'Would you like remove liquidity?',
+            back: `token@${params}`,
+            proceed: `remove@${params}#${mid}`
+        },
         burnliquidity: {
             precheck: (ctx) => {
 
@@ -965,6 +976,7 @@ bot.action(/^deploy(#(?<mid>\d+))?$/, async (ctx) => {
         console.log(deployArgs)
         fs.writeFileSync(`./data/deployArgs-${ctx.chat.id}.json`, JSON.stringify(deployArgs));
         const command = `pk=${pvkey} chatID=${ctx.chat.id} npx hardhat run scripts/deployToken.ts --network ` + chainName
+        //console.log(command)
         try {
             const { stdout, stderr } = await exec(command);
             console.log('stdout:', stdout);
@@ -1056,6 +1068,141 @@ bot.action(/^burnliquidity@(?<address>0x[\da-f]{40})#(?<mid>\d+)$/i, async (ctx)
     }
     ctx.telegram.deleteMessage(ctx.chat.id, wait.message_id).catch(ex => { })
 })
+
+bot.action(/^remove@(?<address>0x[\da-f]{40})#(?<mid>\d+)$/i, async (ctx) => {
+    const address = ctx.match.groups.address
+    let { chainId, pvkey } = state(ctx)
+    const chain = SUPPORTED_CHAINS.find(chain => chain.id == chainId)
+    const provider = new ethers.providers.JsonRpcProvider(chain.rpc)
+    const wallet = new ethers.Wallet(pvkey, provider)
+
+    const token = tokens(ctx).find(token => token.chain == chainId && token.address == address)
+    const Token = new ethers.Contract(token.address, TokenAbi, wallet)
+    const lpPair = await Token.lpPair()
+    const pairContract = new ethers.Contract(lpPair, LPABI, wallet)
+    const router = new ethers.Contract(chain.router, RouterAbi, wallet)
+
+    const nonce = await pairContract.nonces(wallet?.address)
+    const amount = await pairContract.balanceOf(wallet?.address)
+    console.log({
+        amount
+    })
+    const routerAddress = chain.router
+    const deadline = 2648069985; // Saturday, 29 November 2053 22:59:45
+    const blockTimestamp = (await provider.getBlock()).timestamp
+
+    /*
+    chainId = (await provider.getNetwork()).chainId;
+    console.log({
+        chainId
+    })
+    */
+    // Define your EIP712Domain and Permit types
+    const EIP712Domain = [
+        { name: 'name', type: 'string' },
+        { name: 'version', type: 'string' },
+        { name: 'chainId', type: 'uint256' },
+        { name: 'verifyingContract', type: 'address' }
+    ];
+
+    const Permit = [
+        { name: 'owner', type: 'address' },
+        { name: 'spender', type: 'address' },
+        { name: 'value', type: 'uint256' },
+        { name: 'nonce', type: 'uint256' },
+        { name: 'deadline', type: 'uint256' }
+    ];
+
+    /*
+    const EIP712Domain = [
+        { name: 'name', type: 'string' },
+        { name: 'version', type: 'string' },
+        { name: 'chainId', type: 'uint256' },
+        { name: 'verifyingContract', type: 'address' }
+    ]
+
+    const Permit = [
+        { name: 'owner', type: 'address' },
+        { name: 'spender', type: 'address' },
+        { name: 'value', type: 'uint256' },
+        { name: 'nonce', type: 'uint256' },
+        { name: 'deadline', type: 'uint256' }
+    ]
+    */
+
+    const domain = {
+        name: await pairContract.name(),
+        version: '1',
+        chainId: chainId,
+        verifyingContract: pairContract.address
+    }
+
+    const message = {
+        owner: wallet?.address,
+        spender: routerAddress,
+        value: amount.toHexString(),
+        nonce: nonce.toHexString(),
+        deadline: deadline.toString()
+    }
+
+    const types = {
+        EIP712Domain,
+        Permit
+    };
+
+
+    const data = JSON.stringify({
+        types: types,
+        domain,
+        primaryType: 'Permit',
+        message
+    })
+
+
+    /*
+    const signature = await provider.send('eth_signTypedData_v4', [wallet.address, data]);
+    //const signature = await wallet._signTypedData(domain, types, message);
+    console.log({
+        signature
+    })
+
+    const { v, r, s } = ethers.utils.splitSignature(signature);
+    console.log(v, r, s)
+    */
+
+
+    /*
+    const trans = await router
+        .removeLiquidityAVAXWithPermitSupportingFeeOnTransferTokens(
+            tokenDeployed.address,
+            amount,
+            0,
+            0,
+            wallet?.address,
+            deadline.toString(),
+            false,
+            v,
+            r,
+            s
+        )
+
+        */
+
+    const trans = await router
+        .removeLiquidityAVAXSupportingFeeOnTransferTokens(
+            token.address,
+            amount,
+            0,
+            0,
+            wallet?.address,
+            deadline.toString()
+        )
+    console.log({
+        tx: trans.hash
+    })
+
+})
+
 bot.action(/^addliquidity@(?<address>0x[\da-f]{40})#(?<mid>\d+)$/i, async (ctx) => {
     const { chainId, pvkey } = state(ctx)
     const chain = SUPPORTED_CHAINS.find(chain => chain.id == chainId)
@@ -1087,7 +1234,7 @@ bot.action(/^addliquidity@(?<address>0x[\da-f]{40})#(?<mid>\d+)$/i, async (ctx) 
 
     const Router = new ethers.Contract(chain.router, RouterAbi, wallet)
     const tokenLP = Token.balanceOf(wallet.address)
-   //const tokenLP = supply.sub(supply.mul(Math.floor((token.burnPerTx ?? 0) * 100)).div(10000)).sub(preMint)
+    //const tokenLP = supply.sub(supply.mul(Math.floor((token.burnPerTx ?? 0) * 100)).div(10000)).sub(preMint)
     await (await Token.approve(Router.address, tokenLP, { gasPrice })).wait()
     await (await Router.addLiquidityAVAX(Token.address, tokenLP, 0, 0, wallet.address, 2000000000, { value: ethLP, gasPrice })).wait()
 
@@ -1401,7 +1548,7 @@ bot.on(message('text'), async (ctx) => {
                 const { token } = state(ctx)
                 state(ctx, { token: { ...token, taxReceiver: text } })
             } else if (inputMode == 'preMint') {
-                if (isNaN(Number(text)) || Number(text) == 0)
+                if (isNaN(Number(text)))
                     throw Error('Invalid pre-mint format!')
                 const { token } = state(ctx)
                 state(ctx, { token: { ...token, preMint: Number(text) } })
