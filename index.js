@@ -1604,7 +1604,7 @@ bot.on(message('text'), async (ctx) => {
                 const { token } = state(ctx)
                 state(ctx, { token: { ...token, x: text } })
             } else if (inputMode == 'reflectionPercentage') {
-                if (isNaN(Number(text)) || Number(text) == 0)
+                if (isNaN(Number(text)) || Number(text) == 0 || Number(text) < 0.01)
                     throw Error('Invalid amount format!')
                 const { token } = state(ctx)
                 state(ctx, { token: { ...token, reflectionPercentage: Number(text) } })
